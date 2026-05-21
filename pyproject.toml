@@ -1,0 +1,15 @@
+[project]
+name = "docx-style-tree"
+version = "0.1.0"
+description = "Extract DOCX document trees and replace structural styles with FastAPI."
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "MIT" }
+authors = [
+  { name = "lliqa" }
+]
+dependencies = [
+  "fastapi>=0.111.0",
+  "uvicorn[standard]>=0.30.0",
+  "python-multipart>=0.0.9"
+]
