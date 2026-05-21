@@ -1,5 +1,7 @@
 # DOCX 文档结构提取与样式替换实验
 
+[![CI](https://github.com/lliqa/whuopensourcelab/actions/workflows/ci.yml/badge.svg)](https://github.com/lliqa/whuopensourcelab/actions/workflows/ci.yml)
+
 作者：lc, syg  
 课程：武汉大学开源软件与技术课程 2026  
 许可证：MIT License
@@ -101,3 +103,41 @@ uv run python cli.py style example.docx -o styled.docx --styles config/predefine
 
 ```bash
 uv run python -m unittest discover -s tests
+```
+
+## 质量检查
+
+安装开发依赖并运行完整检查：
+
+```bash
+uv sync --extra dev
+make check
+```
+
+检查内容包括：
+
+- `ruff` 静态检查。
+- `mypy` 类型检查。
+- `unittest` 单元测试。
+- `coverage` 覆盖率检查。
+
+远端 CI 会额外下载外部 DOCX fixtures 并纳入测试。若要在本地运行同样的复杂语料测试：
+
+```bash
+make fixtures
+make check
+```
+
+fixtures 清单位于 `tests/fixtures/docx_manifest.json`，只记录来源 URL 与 SHA256，不提交外部二进制文件。
+
+生成 Doxygen API 文档：
+
+```bash
+make docs
+```
+
+该命令需要本机已安装 `doxygen`。
+
+## 仓库地址
+
+https://github.com/lliqa/whuopensourcelab

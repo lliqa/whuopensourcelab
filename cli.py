@@ -11,6 +11,7 @@ import json
 from pathlib import Path
 
 from docx_style_tree import analyze_docx, replace_styles
+from docx_style_tree.errors import DocxStyleTreeError
 from docx_style_tree.style_replacer import load_style_map
 
 
@@ -29,10 +30,13 @@ def main() -> None:
     style_parser.add_argument("--styles", type=Path, help="style mapping JSON file")
 
     args = parser.parse_args()
-    if args.command == "analyze":
-        _analyze(args.input, args.output)
-    elif args.command == "style":
-        _style(args.input, args.output, args.styles)
+    try:
+        if args.command == "analyze":
+            _analyze(args.input, args.output)
+        elif args.command == "style":
+            _style(args.input, args.output, args.styles)
+    except (DocxStyleTreeError, OSError, json.JSONDecodeError) as exc:
+        parser.exit(status=1, message=f"error: {exc}\n")
 
 
 def _analyze(input_path: Path, output_path: Path | None) -> None:

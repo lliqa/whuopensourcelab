@@ -9,10 +9,10 @@ from __future__ import annotations
 import re
 import zipfile
 from io import BytesIO
-from pathlib import Path
-from typing import Any, BinaryIO
+from typing import Any
 from xml.etree import ElementTree as ET
 
+from docx_style_tree.errors import InvalidDocxError
 from docx_style_tree.models import DocumentNode
 from docx_style_tree.ooxml import (
     NS,
@@ -22,8 +22,13 @@ from docx_style_tree.ooxml import (
     normalize_style,
     paragraph_text,
 )
-
-DocxSource = str | Path | bytes | BinaryIO
+from docx_style_tree.package import (
+    DocxSource,
+    parse_xml_part,
+    read_required_part,
+    read_source,
+    read_style_names,
+)
 
 CHINESE_LEVELS = {
     "一": 1,
@@ -37,6 +42,18 @@ CHINESE_LEVELS = {
     "九": 9,
 }
 
+PLAIN_TEXT_HEADING_LEVELS = {
+    "习题解析": 2,
+}
+
+QUESTION_SECTION_TITLES = {
+    "单选题",
+    "多选题",
+    "判断题",
+    "填空题",
+    "简答题",
+}
+
 
 def analyze_docx(source: DocxSource) -> dict[str, Any]:
     """@brief Analyze a DOCX file and return a document tree.
@@ -44,45 +61,21 @@ def analyze_docx(source: DocxSource) -> dict[str, Any]:
     @param source File path, bytes, or a binary file-like object.
     @return JSON-ready dictionary containing metadata and tree data.
     """
-    docx_bytes = _read_source(source)
-    with zipfile.ZipFile(BytesIO(docx_bytes)) as package:
-        document_xml = package.read("word/document.xml")
-        style_names = _read_style_names(package)
+    docx_bytes = read_source(source)
+    try:
+        with zipfile.ZipFile(BytesIO(docx_bytes)) as package:
+            document_xml = read_required_part(package, "word/document.xml")
+            style_names = read_style_names(package)
+    except zipfile.BadZipFile as exc:
+        raise InvalidDocxError("Input is not a valid DOCX archive.") from exc
 
-    root = ET.fromstring(document_xml)
+    root = parse_xml_part(document_xml, "word/document.xml")
     tree = _build_tree(root, style_names)
     return {
         "format": "docx",
         "node_count": _count_nodes(tree),
         "tree": tree.to_dict(),
     }
-
-
-def _read_source(source: DocxSource) -> bytes:
-    """@brief Normalize supported input sources to bytes."""
-    if isinstance(source, bytes):
-        return source
-    if isinstance(source, (str, Path)):
-        return Path(source).read_bytes()
-    return source.read()
-
-
-def _read_style_names(package: zipfile.ZipFile) -> dict[str, str]:
-    """@brief Read style id to display name mappings from styles.xml."""
-    try:
-        styles_xml = package.read("word/styles.xml")
-    except KeyError:
-        return {}
-
-    root = ET.fromstring(styles_xml)
-    names: dict[str, str] = {}
-    for style in root.findall(".//w:style", NS):
-        style_id = attr(style, "styleId")
-        name_node = style.find("./w:name", NS)
-        style_name = attr(name_node, "val") if name_node is not None else None
-        if style_id and style_name:
-            names[style_id] = style_name
-    return names
 
 
 def _build_tree(document_root: ET.Element, style_names: dict[str, str]) -> DocumentNode:
@@ -167,10 +160,9 @@ def _detect_text_heading_level(text: str) -> int | None:
         return 1
 
     normalized_title = compact.rstrip("、:：")
-    if normalized_title == "习题解析":
-        return 2
-    question_titles = {"单选题", "多选题", "判断题", "填空题", "简答题"}
-    if normalized_title in question_titles:
+    if normalized_title in PLAIN_TEXT_HEADING_LEVELS:
+        return PLAIN_TEXT_HEADING_LEVELS[normalized_title]
+    if normalized_title in QUESTION_SECTION_TITLES:
         return 3
     return None
 

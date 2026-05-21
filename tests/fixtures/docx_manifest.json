@@ -1,0 +1,65 @@
+{
+  "fixtures": [
+    {
+      "name": "PreserveWfieldTOC.docx",
+      "source": "LibreOffice Writer OOXML export regression data",
+      "url": "https://raw.githubusercontent.com/LibreOffice/core/74d6cf915fa59568caf7533889aea7cbff9388df/sw/qa/extras/ooxmlexport/data/PreserveWfieldTOC.docx",
+      "sha256": "7d161ef7e9be8614c050965a123409178dc2f9e8bc0008e418478f70d0d0a855",
+      "expected": {
+        "node_count": 4,
+        "top_titles": ["Heading 1", "Heading 2"],
+        "child_titles": {
+          "Heading 2": ["Heading 3"]
+        },
+        "required_tags": ["hyperlink", "sdt", "sdtContent"]
+      }
+    },
+    {
+      "name": "TableWithAboveCaptions.docx",
+      "source": "LibreOffice Writer OOXML export regression data",
+      "url": "https://raw.githubusercontent.com/LibreOffice/core/74d6cf915fa59568caf7533889aea7cbff9388df/sw/qa/extras/ooxmlexport/data/TableWithAboveCaptions.docx",
+      "sha256": "4bce6a10b00d0e375f27b38bdf5b33c37e4f2f291d711c29ea4d1ada86814da0",
+      "expected": {
+        "node_count": 1,
+        "required_tags": ["fldSimple", "tbl"]
+      }
+    },
+    {
+      "name": "090716_Studentische_Arbeit_VWS.docx",
+      "source": "LibreOffice Writer OOXML export regression data",
+      "url": "https://raw.githubusercontent.com/LibreOffice/core/74d6cf915fa59568caf7533889aea7cbff9388df/sw/qa/extras/ooxmlexport/data/090716_Studentische_Arbeit_VWS.docx",
+      "sha256": "085e8dbbb0674ac78906710dcd1a431d162fe3432d86adaa18f578a514a83125",
+      "expected": {
+        "node_count": 2,
+        "top_titles": ["\u00c4ussere Form und Inhalt"],
+        "required_parts": ["word/comments.xml", "word/header1.xml", "word/footer1.xml", "word/numbering.xml"],
+        "required_tags": ["commentRangeStart", "commentReference", "pict"]
+      }
+    },
+    {
+      "name": "CU009-Chart-Embedded-Xlsx-01.docx",
+      "source": "Open-Xml-PowerTools TestFiles",
+      "url": "https://raw.githubusercontent.com/OpenXmlDev/Open-Xml-PowerTools/536ca1fb4bcdce1f4c920658bd66807b970393d7/TestFiles/CU009-Chart-Embedded-Xlsx-01.docx",
+      "sha256": "9ab879f154b041e30b809b8f9f7d48ba7c14ddbe3bc0d509a29093081a662f45",
+      "expected": {
+        "node_count": 1,
+        "required_parts": [
+          "word/charts/chart1.xml",
+          "word/charts/_rels/chart1.xml.rels",
+          "word/embeddings/Microsoft_Excel_Worksheet1.xlsx"
+        ],
+        "required_tags": ["drawing", "sdt", "sdtContent"]
+      }
+    },
+    {
+      "name": "DA024-TrackedRevisions.docx",
+      "source": "Open-Xml-PowerTools TestFiles",
+      "url": "https://raw.githubusercontent.com/OpenXmlDev/Open-Xml-PowerTools/536ca1fb4bcdce1f4c920658bd66807b970393d7/TestFiles/DA024-TrackedRevisions.docx",
+      "sha256": "9055506f01de88127476ca0ed3ec822025f70b05af6e6930a8333b8caa6f58da",
+      "expected": {
+        "node_count": 1,
+        "required_tags": ["del", "tbl"]
+      }
+    }
+  ]
+}

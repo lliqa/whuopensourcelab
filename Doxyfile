@@ -1,0 +1,22 @@
+PROJECT_NAME           = "DOCX Style Tree"
+PROJECT_BRIEF          = "DOCX document tree extraction and structural style replacement"
+OUTPUT_LANGUAGE        = Chinese
+OUTPUT_DIRECTORY       = docs/api
+
+INPUT                  = app cli.py docx_style_tree
+FILE_PATTERNS          = *.py
+RECURSIVE              = YES
+EXTRACT_ALL            = YES
+HIDE_UNDOC_MEMBERS     = NO
+OPTIMIZE_OUTPUT_JAVA   = YES
+
+GENERATE_HTML          = YES
+HTML_OUTPUT            = html
+GENERATE_LATEX         = NO
+GENERATE_XML           = NO
+GENERATE_RTF           = NO
+GENERATE_MAN           = NO
+GENERATE_DOCBOOK       = NO
+
+HAVE_DOT               = NO
+QUIET                  = YES

@@ -19,7 +19,7 @@ class DocumentNode:
     style_id: str | None = None
     style_name: str | None = None
     content: list[dict[str, Any]] = field(default_factory=list)
-    children: list["DocumentNode"] = field(default_factory=list)
+    children: list[DocumentNode] = field(default_factory=list)
 
     def to_dict(self) -> dict[str, Any]:
         """@brief Convert the node and descendants to JSON-ready data."""
