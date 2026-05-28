@@ -31,6 +31,7 @@ from docx_style_tree.package import (
     read_required_part,
     read_source,
     read_style_names,
+    read_style_outline_levels,
 )
 
 DEFAULT_STYLE_MAP = {
@@ -78,6 +79,7 @@ def replace_styles(
         with zipfile.ZipFile(BytesIO(docx_bytes)) as package:
             document_xml = read_required_part(package, "word/document.xml")
             style_names = read_style_names(package)
+            style_outline_levels = read_style_outline_levels(package)
             try:
                 styles_xml = package.read("word/styles.xml")
             except KeyError:
@@ -94,6 +96,7 @@ def replace_styles(
     document_changed, styles_changed = _replace_document_styles(
         document_root,
         style_names,
+        style_outline_levels,
         style_lookup,
         styles_root,
         mapping,
@@ -143,6 +146,7 @@ def normalize_style_map(style_map: Mapping[str, object]) -> dict[str, str]:
 def _replace_document_styles(
     document_root: ET.Element,
     style_names: dict[str, str],
+    style_outline_levels: dict[str, int],
     style_lookup: dict[str, str],
     styles_root: ET.Element,
     mapping: dict[str, str],
@@ -164,7 +168,8 @@ def _replace_document_styles(
 
         style_id = get_paragraph_style(paragraph)
         style_name = style_names.get(style_id or "")
-        level = detect_heading_level(paragraph, style_id, style_name)
+        style_outline_level = style_outline_levels.get(style_id or "")
+        level = detect_heading_level(paragraph, style_id, style_name, style_outline_level)
         key = _mapping_key(level, style_id, style_name)
         if key is None or key not in mapping:
             continue

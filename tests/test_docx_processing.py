@@ -39,7 +39,7 @@ class DocxProcessingTest(unittest.TestCase):
         styles = [attr(style, "val") for style in root.findall(".//w:pPr/w:pStyle", NS)]
         self.assertEqual(styles[:2], ["CustomHeading1", "CustomHeading2"])
 
-    def test_analyze_docx_detects_chinese_plain_text_headings(self) -> None:
+    def test_analyze_docx_treats_unstyled_chinese_heading_text_as_content(self) -> None:
         docx = _make_docx(
             paragraphs=[
                 (None, "第一、注册华为ICT人才账号"),
@@ -53,14 +53,20 @@ class DocxProcessingTest(unittest.TestCase):
         result = analyze_docx(docx)
 
         root = result["tree"]
-        self.assertEqual(result["node_count"], 4)
-        self.assertEqual(root["children"][0]["title"], "第一、注册华为ICT人才账号")
-        self.assertEqual(root["children"][0]["children"][0]["title"], "习题解析")
-        self.assertEqual(root["children"][0]["children"][0]["children"][0]["title"], "单选题、")
-        question_content = root["children"][0]["children"][0]["children"][0]["content"][0]["text"]
-        self.assertEqual(question_content, "1、这是一道题，不应作为章节标题")
+        self.assertEqual(result["node_count"], 1)
+        self.assertEqual(root["children"], [])
+        self.assertEqual(
+            [content["text"] for content in root["content"]],
+            [
+                "第一、注册华为ICT人才账号",
+                "登录，并打开网址",
+                "习题解析",
+                "单选题、",
+                "1、这是一道题，不应作为章节标题",
+            ],
+        )
 
-    def test_analyze_docx_detects_numbered_plain_text_headings(self) -> None:
+    def test_analyze_docx_treats_unstyled_numbered_heading_text_as_content(self) -> None:
         docx = _make_docx(
             paragraphs=[
                 (None, "一、项目简介"),
@@ -76,14 +82,11 @@ class DocxProcessingTest(unittest.TestCase):
         result = analyze_docx(docx)
 
         root = result["tree"]
-        self.assertEqual(result["node_count"], 4)
-        chapter = root["children"][0]
-        section = chapter["children"][0]
-        subsection = section["children"][0]
-        self.assertEqual(chapter["title"], "一、项目简介")
-        self.assertEqual(section["title"], "1.1 主要功能")
-        self.assertEqual(subsection["title"], "1.1.1 子功能")
-        self.assertEqual(subsection["content"][1]["text"], "1、这是一道题，不应作为章节标题")
+        self.assertEqual(result["node_count"], 1)
+        self.assertEqual(root["children"], [])
+        self.assertEqual(root["content"][0]["text"], "一、项目简介")
+        self.assertEqual(root["content"][2]["text"], "1.1 主要功能")
+        self.assertEqual(root["content"][4]["text"], "1.1.1 子功能")
 
     def test_detect_heading_level_parses_chinese_style_number(self) -> None:
         paragraph = ET.fromstring(
@@ -133,6 +136,33 @@ class DocxProcessingTest(unittest.TestCase):
         result = analyze_docx(docx)
 
         self.assertEqual(result["tree"]["children"][0]["level"], 3)
+
+    def test_analyze_docx_detects_style_outline_level(self) -> None:
+        docx = _make_docx(
+            paragraphs=[
+                ("CustomChapter", "Chapter From Style Outline"),
+                ("CustomSection", "Section From Inherited Outline"),
+                ("Normal", "Body text"),
+            ],
+            extra_styles=[
+                '  <w:style w:type="paragraph" w:styleId="CustomChapter">',
+                '    <w:name w:val="Custom Chapter"/>',
+                '    <w:pPr><w:outlineLvl w:val="0"/></w:pPr>',
+                "  </w:style>",
+                '  <w:style w:type="paragraph" w:styleId="CustomSection">',
+                '    <w:name w:val="Custom Section"/>',
+                '    <w:basedOn w:val="Heading2"/>',
+                "  </w:style>",
+            ],
+        )
+
+        result = analyze_docx(docx)
+
+        chapter = result["tree"]["children"][0]
+        section = chapter["children"][0]
+        self.assertEqual(chapter["level"], 1)
+        self.assertEqual(section["level"], 2)
+        self.assertEqual(section["content"][0]["text"], "Body text")
 
     def test_extract_table_preserves_text_controls(self) -> None:
         docx = _make_docx(
@@ -226,6 +256,7 @@ def _make_docx(
     *,
     body_xml: str | None = None,
     include_styles: bool = True,
+    extra_styles: list[str] | None = None,
 ) -> bytes:
     if paragraphs is None:
         paragraphs = [
@@ -242,30 +273,32 @@ def _make_docx(
   </w:body>
 </w:document>
 """
-    styles_xml = "\n".join(
-        [
-            '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>',
-            '<w:styles xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">',
-            '  <w:style w:type="paragraph" w:styleId="Heading1">',
-            '    <w:name w:val="Heading 1"/>',
-            "  </w:style>",
-            '  <w:style w:type="paragraph" w:styleId="Heading2">',
-            '    <w:name w:val="Heading 2"/>',
-            "  </w:style>",
-            '  <w:style w:type="paragraph" w:styleId="Normal"><w:name w:val="Normal"/></w:style>',
-            '  <w:style w:type="paragraph" w:styleId="Caption"><w:name w:val="Caption"/></w:style>',
-            '  <w:style w:type="paragraph" w:styleId="CustomNormal">',
-            '    <w:name w:val="Custom Normal"/>',
-            "  </w:style>",
-            '  <w:style w:type="paragraph" w:styleId="CustomHeading1">',
-            '    <w:name w:val="Custom Heading 1"/>',
-            "  </w:style>",
-            '  <w:style w:type="paragraph" w:styleId="CustomHeading2">',
-            '    <w:name w:val="Custom Heading 2"/>',
-            "  </w:style>",
-            "</w:styles>",
-        ]
-    )
+    style_parts = [
+        '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>',
+        '<w:styles xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">',
+        '  <w:style w:type="paragraph" w:styleId="Heading1">',
+        '    <w:name w:val="Heading 1"/>',
+        '  </w:style>',
+        '  <w:style w:type="paragraph" w:styleId="Heading2">',
+        '    <w:name w:val="Heading 2"/>',
+        '    <w:pPr><w:outlineLvl w:val="1"/></w:pPr>',
+        '  </w:style>',
+        '  <w:style w:type="paragraph" w:styleId="Normal"><w:name w:val="Normal"/></w:style>',
+        '  <w:style w:type="paragraph" w:styleId="Caption"><w:name w:val="Caption"/></w:style>',
+        '  <w:style w:type="paragraph" w:styleId="CustomNormal">',
+        '    <w:name w:val="Custom Normal"/>',
+        "  </w:style>",
+        '  <w:style w:type="paragraph" w:styleId="CustomHeading1">',
+        '    <w:name w:val="Custom Heading 1"/>',
+        "  </w:style>",
+        '  <w:style w:type="paragraph" w:styleId="CustomHeading2">',
+        '    <w:name w:val="Custom Heading 2"/>',
+        "  </w:style>",
+    ]
+    if extra_styles:
+        style_parts.extend(extra_styles)
+    style_parts.append("</w:styles>")
+    styles_xml = "\n".join(style_parts)
     content_types = """<?xml version="1.0" encoding="UTF-8"?>
 <Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
   <Default Extension="xml" ContentType="application/xml"/>

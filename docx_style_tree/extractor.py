@@ -28,6 +28,7 @@ from docx_style_tree.package import (
     read_required_part,
     read_source,
     read_style_names,
+    read_style_outline_levels,
 )
 
 CHINESE_NUMERAL_DIGITS = {
@@ -51,13 +52,7 @@ CHINESE_NUMERAL_UNITS = {
 }
 CHINESE_NUMERAL_CHARS = "".join(CHINESE_NUMERAL_DIGITS) + "".join(CHINESE_NUMERAL_UNITS)
 
-STYLE_HEADING_RE = re.compile(rf"标题([1-9{CHINESE_NUMERAL_CHARS}]+)")
-CHINESE_ORDERED_HEADING_RE = re.compile(rf"^(?:第)?[{CHINESE_NUMERAL_CHARS}]+[、.．章节篇]")
-ARABIC_DOTTED_HEADING_RE = re.compile(r"^(\d+(?:[.．]\d+)+)")
-SHORT_TITLE_HEADING_RULES = (
-    (re.compile(r"^(?:习题|试题|答案)解析$"), 2),
-    (re.compile(r"^(?:单选|多选|判断|填空|简答)题$"), 3),
-)
+STYLE_HEADING_RE = re.compile(rf"标题\s*([1-9{CHINESE_NUMERAL_CHARS}]+)")
 
 
 def analyze_docx(source: DocxSource) -> dict[str, Any]:
@@ -71,11 +66,12 @@ def analyze_docx(source: DocxSource) -> dict[str, Any]:
         with zipfile.ZipFile(BytesIO(docx_bytes)) as package:
             document_xml = read_required_part(package, "word/document.xml")
             style_names = read_style_names(package)
+            style_outline_levels = read_style_outline_levels(package)
     except zipfile.BadZipFile as exc:
         raise InvalidDocxError("Input is not a valid DOCX archive.") from exc
 
     root = parse_xml_part(document_xml, "word/document.xml")
-    tree = _build_tree(root, style_names)
+    tree = _build_tree(root, style_names, style_outline_levels)
     return {
         "format": "docx",
         "node_count": _count_nodes(tree),
@@ -83,7 +79,11 @@ def analyze_docx(source: DocxSource) -> dict[str, Any]:
     }
 
 
-def _build_tree(document_root: ET.Element, style_names: dict[str, str]) -> DocumentNode:
+def _build_tree(
+    document_root: ET.Element,
+    style_names: dict[str, str],
+    style_outline_levels: dict[str, int],
+) -> DocumentNode:
     """@brief 根据文档正文中的标题构建层级树。"""
     body = document_root.find(".//w:body", NS)
     root = DocumentNode(title="Document", level=0)
@@ -99,7 +99,8 @@ def _build_tree(document_root: ET.Element, style_names: dict[str, str]) -> Docum
                 continue
             style_id = get_paragraph_style(child)
             style_name = style_names.get(style_id or "")
-            level = detect_heading_level(child, style_id, style_name)
+            style_outline_level = style_outline_levels.get(style_id or "")
+            level = detect_heading_level(child, style_id, style_name, style_outline_level)
             if level is not None:
                 node = DocumentNode(
                     title=text,
@@ -131,12 +132,15 @@ def detect_heading_level(
     paragraph: ET.Element,
     style_id: str | None,
     style_name: str | None,
+    style_outline_level: int | None = None,
 ) -> int | None:
     """@brief 判断段落是否为标题，并返回标题层级。"""
     outline = paragraph.find("./w:pPr/w:outlineLvl", NS)
     outline_value = attr(outline, "val") if outline is not None else None
     if outline_value is not None and outline_value.isdigit():
         return int(outline_value) + 1
+    if style_outline_level is not None:
+        return style_outline_level
 
     combined = " ".join(value for value in [style_id, style_name] if value)
     normalized = normalize_style(combined)
@@ -153,26 +157,6 @@ def detect_heading_level(
 
     if normalized in {"title", "biaoti"}:
         return 1
-    return _detect_text_heading_level(paragraph_text(paragraph))
-
-
-def _detect_text_heading_level(text: str) -> int | None:
-    """@brief 在缺少 DOCX 样式时根据纯文本判断标题层级。"""
-    compact = re.sub(r"\s+", "", text)
-    if not compact:
-        return None
-
-    dotted_level = _detect_dotted_number_heading_level(compact)
-    if dotted_level is not None:
-        return dotted_level
-
-    if CHINESE_ORDERED_HEADING_RE.match(compact):
-        return 1
-
-    normalized_title = compact.rstrip("、:：")
-    for pattern, level in SHORT_TITLE_HEADING_RULES:
-        if pattern.fullmatch(normalized_title):
-            return level
     return None
 
 
@@ -204,15 +188,6 @@ def _parse_chinese_number(value: str) -> int | None:
 
     result = total + current
     return result if result > 0 else None
-
-
-def _detect_dotted_number_heading_level(text: str) -> int | None:
-    """@brief 根据 1.1 或 1.1.1 形式判断阿拉伯数字标题层级。"""
-    match = ARABIC_DOTTED_HEADING_RE.match(text)
-    if match is None:
-        return None
-    separator_count = match.group(1).count(".") + match.group(1).count("．")
-    return min(separator_count + 1, 9)
 
 
 def _extract_table(table: ET.Element) -> dict[str, Any]:
