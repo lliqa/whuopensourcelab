@@ -1,7 +1,7 @@
-"""Data models used by DOCX structure extraction.
+"""DOCX 结构提取使用的数据模型。
 
 @author lliqa
-@course Wuhan University Open Source Software and Technology 2026
+@course 武汉大学开源软件与技术课程 2026
 """
 
 from __future__ import annotations
@@ -12,7 +12,7 @@ from typing import Any
 
 @dataclass
 class DocumentNode:
-    """@brief A node in the extracted document tree."""
+    """@brief 提取出的文档树节点。"""
 
     title: str
     level: int
@@ -22,7 +22,7 @@ class DocumentNode:
     children: list[DocumentNode] = field(default_factory=list)
 
     def to_dict(self) -> dict[str, Any]:
-        """@brief Convert the node and descendants to JSON-ready data."""
+        """@brief 将当前节点及其子孙节点转换为可序列化 JSON 的数据。"""
         return {
             "title": self.title,
             "level": self.level,

@@ -1,7 +1,7 @@
-"""DOCX structural style replacement.
+"""DOCX 结构样式替换。
 
 @author lliqa
-@course Wuhan University Open Source Software and Technology 2026
+@course 武汉大学开源软件与技术课程 2026
 """
 
 from __future__ import annotations
@@ -53,7 +53,7 @@ BODY_TEXT_STYLES = {
 
 
 def load_style_map(path: str | Path | None = None) -> dict[str, str]:
-    """@brief Load style mapping from JSON or return the default mapping."""
+    """@brief 从 JSON 加载样式映射，未指定路径时返回默认映射。"""
     if path is None:
         return dict(DEFAULT_STYLE_MAP)
     data = json.loads(Path(path).read_text(encoding="utf-8"))
@@ -64,11 +64,11 @@ def replace_styles(
     source: DocxSource,
     style_map: Mapping[str, object] | None = None,
 ) -> bytes:
-    """@brief Replace structural paragraph styles in a DOCX package.
+    """@brief 替换 DOCX 包中的结构段落样式。
 
-    @param source Input DOCX as path, bytes, or binary stream.
-    @param style_map Mapping such as {"heading_1": "Heading 1"}.
-    @return Bytes of the updated DOCX file.
+    @param source 输入 DOCX，可以是路径、字节数据或二进制流。
+    @param style_map 样式映射，例如 {"heading_1": "Heading 1"}。
+    @return 更新后的 DOCX 文件字节数据。
     """
     mapping = normalize_style_map(DEFAULT_STYLE_MAP if style_map is None else style_map)
     docx_bytes = read_source(source)
@@ -126,7 +126,7 @@ def replace_styles(
 
 
 def normalize_style_map(style_map: Mapping[str, object]) -> dict[str, str]:
-    """@brief Validate and normalize a user-provided style mapping."""
+    """@brief 校验并规范化用户提供的样式映射。"""
     if not isinstance(style_map, Mapping):
         raise InvalidStyleMapError("style_map must be a JSON object.")
 
@@ -147,7 +147,7 @@ def _replace_document_styles(
     styles_root: ET.Element,
     mapping: dict[str, str],
 ) -> tuple[bool, bool]:
-    """@brief Apply style mapping to each structural paragraph."""
+    """@brief 将样式映射应用到每个结构段落。"""
     body = document_root.find(".//w:body", NS)
     if body is None:
         return False, False
@@ -186,7 +186,7 @@ def _replace_document_styles(
 
 
 def _mapping_key(level: int | None, style_id: str | None, style_name: str | None) -> str | None:
-    """@brief Convert a paragraph style classification to a style map key."""
+    """@brief 将段落样式分类转换为 style map 键。"""
     normalized_values = {normalize_style(value) for value in [style_id, style_name] if value}
     if "title" in normalized_values:
         return "title"
@@ -198,12 +198,12 @@ def _mapping_key(level: int | None, style_id: str | None, style_name: str | None
 
 
 def _is_list_paragraph(paragraph: ET.Element) -> bool:
-    """@brief Return whether a paragraph belongs to a numbered or bulleted list."""
+    """@brief 判断段落是否属于编号或项目符号列表。"""
     return paragraph.find("./w:pPr/w:numPr", NS) is not None
 
 
 def _build_style_lookup(style_names: dict[str, str]) -> dict[str, str]:
-    """@brief Build normalized style id/name to style id lookup table."""
+    """@brief 构建规范化样式 ID 或名称到样式 ID 的查找表。"""
     lookup: dict[str, str] = {}
     for style_id, style_name in style_names.items():
         lookup[normalize_style(style_id)] = style_id
@@ -217,7 +217,7 @@ def _resolve_style_id(
     style_lookup: dict[str, str],
     styles_root: ET.Element,
 ) -> tuple[str, bool]:
-    """@brief Resolve a human-readable style name to a DOCX style id."""
+    """@brief 将可读样式名称解析为 DOCX 样式 ID。"""
     style_id = style_lookup.get(normalize_style(target))
     if style_id is not None:
         return style_id, False
@@ -230,7 +230,7 @@ def _resolve_style_id(
 
 
 def _style_id_from_target(key: str, target: str) -> str:
-    """@brief Build a valid Word style id from a mapping target."""
+    """@brief 根据映射目标构造合法的 Word 样式 ID。"""
     style_id = re.sub(r"[^A-Za-z0-9_]", "", target)
     if not style_id:
         style_id = "".join(part.capitalize() for part in key.split("_"))
@@ -246,7 +246,7 @@ def _append_paragraph_style(
     key: str,
     style_lookup: dict[str, str],
 ) -> None:
-    """@brief Append a minimal paragraph style definition to styles.xml."""
+    """@brief 向 styles.xml 追加最小段落样式定义。"""
     style = ET.SubElement(
         styles_root, qn("style"), {qn("type"): "paragraph", qn("styleId"): style_id}
     )
@@ -269,13 +269,13 @@ def _append_paragraph_style(
 
 
 def _heading_level_from_key(key: str) -> int | None:
-    """@brief Parse heading_N keys into heading levels."""
+    """@brief 将 heading_N 键解析为标题层级。"""
     match = re.fullmatch(r"heading_([1-9])", key)
     return int(match.group(1)) if match else None
 
 
 def _new_styles_root() -> ET.Element:
-    """@brief Create a minimal styles root when a DOCX has no styles.xml."""
+    """@brief 在 DOCX 缺少 styles.xml 时创建最小 styles 根节点。"""
     return ET.Element(qn("styles"))
 
 
@@ -287,7 +287,7 @@ def _replacement_content(
     document_changed: bool,
     styles_changed: bool,
 ) -> bytes:
-    """@brief Select replacement content for a DOCX package member."""
+    """@brief 为 DOCX 包成员选择替换后的内容。"""
     if filename == "word/document.xml" and document_changed:
         return updated_document_xml
     if filename == "word/styles.xml" and styles_changed:
@@ -296,7 +296,7 @@ def _replacement_content(
 
 
 def _copy_zip_info(info: zipfile.ZipInfo) -> zipfile.ZipInfo:
-    """@brief Copy metadata for an unchanged DOCX ZIP member."""
+    """@brief 复制未改动 DOCX ZIP 成员的元数据。"""
     new_info = zipfile.ZipInfo(filename=info.filename, date_time=info.date_time)
     new_info.comment = info.comment
     new_info.compress_type = info.compress_type

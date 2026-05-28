@@ -1,7 +1,7 @@
-"""FastAPI service for DOCX tree extraction and style replacement.
+"""DOCX 文档树提取与样式替换的 FastAPI 服务。
 
 @author lliqa
-@course Wuhan University Open Source Software and Technology 2026
+@course 武汉大学开源软件与技术课程 2026
 """
 
 from __future__ import annotations
@@ -33,13 +33,13 @@ app = FastAPI(
 
 @app.get("/health")
 def health() -> dict[str, str]:
-    """@brief Return service health status."""
+    """@brief 返回服务健康状态。"""
     return {"status": "ok"}
 
 
 @app.post("/api/tree")
 async def extract_tree(file: Annotated[UploadFile, File()]) -> dict[str, Any]:
-    """@brief Extract document tree information from an uploaded DOCX file."""
+    """@brief 从上传的 DOCX 文件中提取文档树信息。"""
     docx_bytes = await _read_docx_upload(file)
     try:
         return analyze_docx(docx_bytes)
@@ -52,7 +52,7 @@ async def replace_document_style(
     file: Annotated[UploadFile, File()],
     style_map: Annotated[str | None, Form()] = None,
 ) -> StreamingResponse:
-    """@brief Replace structural styles and return the updated DOCX."""
+    """@brief 替换文档结构样式并返回更新后的 DOCX。"""
     docx_bytes = await _read_docx_upload(file)
     try:
         mapping = _parse_style_map(style_map)
@@ -73,7 +73,7 @@ async def replace_document_style(
 
 
 async def _read_docx_upload(file: UploadFile) -> bytes:
-    """@brief Validate upload name and read request body."""
+    """@brief 校验上传文件名并读取请求体。"""
     if file.filename and not file.filename.lower().endswith(".docx"):
         raise HTTPException(status_code=400, detail="Only .docx files are supported.")
     data = await _read_limited_upload(file)
@@ -84,7 +84,7 @@ async def _read_docx_upload(file: UploadFile) -> bytes:
 
 
 async def _read_limited_upload(file: UploadFile) -> bytes:
-    """@brief Read an upload while enforcing a compressed size limit."""
+    """@brief 在压缩体积限制内读取上传内容。"""
     chunks: list[bytes] = []
     total = 0
     while True:
@@ -99,7 +99,7 @@ async def _read_limited_upload(file: UploadFile) -> bytes:
 
 
 def _validate_docx_archive(data: bytes) -> None:
-    """@brief Reject invalid DOCX archives and oversized expanded packages."""
+    """@brief 拒绝无效 DOCX 压缩包和解压后过大的文件。"""
     try:
         with zipfile.ZipFile(BytesIO(data)) as package:
             names = set(package.namelist())
@@ -117,14 +117,14 @@ def _validate_docx_archive(data: bytes) -> None:
 
 
 def _validate_archive_member_name(filename: str) -> None:
-    """@brief Reject unsafe archive member names."""
+    """@brief 拒绝不安全的压缩包成员路径。"""
     path = PurePosixPath(filename)
     if path.is_absolute() or ".." in path.parts:
         raise HTTPException(status_code=400, detail="Invalid DOCX file.")
 
 
 def _parse_style_map(style_map: str | None) -> Mapping[str, object]:
-    """@brief Parse optional style_map form data into a mapping."""
+    """@brief 将可选的 style_map 表单数据解析为映射。"""
     if style_map is None:
         return load_style_map()
     data = json.loads(style_map)
@@ -134,7 +134,7 @@ def _parse_style_map(style_map: str | None) -> Mapping[str, object]:
 
 
 def _styled_filename(filename: str | None) -> str:
-    """@brief Build a download filename for styled output."""
+    """@brief 为样式替换输出构造下载文件名。"""
     if not filename:
         return "styled.docx"
     if filename.lower().endswith(".docx"):

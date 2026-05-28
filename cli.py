@@ -1,7 +1,7 @@
-"""Command line interface for DOCX structure extraction and style replacement.
+"""DOCX 结构提取与样式替换的命令行入口。
 
 @author lliqa
-@course Wuhan University Open Source Software and Technology 2026
+@course 武汉大学开源软件与技术课程 2026
 """
 
 from __future__ import annotations
@@ -16,7 +16,7 @@ from docx_style_tree.style_replacer import load_style_map
 
 
 def main() -> None:
-    """@brief Parse arguments and execute the selected command."""
+    """@brief 解析命令行参数并执行对应命令。"""
     parser = argparse.ArgumentParser(description="DOCX tree extraction and style replacement.")
     subparsers = parser.add_subparsers(dest="command", required=True)
 
@@ -40,7 +40,7 @@ def main() -> None:
 
 
 def _analyze(input_path: Path, output_path: Path | None) -> None:
-    """@brief Analyze a document and write JSON to file or stdout."""
+    """@brief 分析文档并将 JSON 写入文件或标准输出。"""
     result = analyze_docx(input_path)
     payload = json.dumps(result, ensure_ascii=False, indent=2)
     if output_path:
@@ -50,7 +50,7 @@ def _analyze(input_path: Path, output_path: Path | None) -> None:
 
 
 def _style(input_path: Path, output_path: Path, style_path: Path | None) -> None:
-    """@brief Apply predefined styles and write an updated DOCX file."""
+    """@brief 应用预定义样式并写出更新后的 DOCX 文件。"""
     mapping = load_style_map(style_path)
     output_path.write_bytes(replace_styles(input_path, mapping))
 

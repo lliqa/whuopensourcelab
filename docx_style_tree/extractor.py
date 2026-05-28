@@ -1,7 +1,7 @@
-"""DOCX structure extraction.
+"""DOCX 文档结构提取。
 
 @author lliqa
-@course Wuhan University Open Source Software and Technology 2026
+@course 武汉大学开源软件与技术课程 2026
 """
 
 from __future__ import annotations
@@ -30,9 +30,12 @@ from docx_style_tree.package import (
     read_style_names,
 )
 
-CHINESE_LEVELS = {
+CHINESE_NUMERAL_DIGITS = {
+    "零": 0,
+    "〇": 0,
     "一": 1,
     "二": 2,
+    "两": 2,
     "三": 3,
     "四": 4,
     "五": 5,
@@ -41,25 +44,27 @@ CHINESE_LEVELS = {
     "八": 8,
     "九": 9,
 }
-
-PLAIN_TEXT_HEADING_LEVELS = {
-    "习题解析": 2,
+CHINESE_NUMERAL_UNITS = {
+    "十": 10,
+    "百": 100,
+    "千": 1000,
 }
+CHINESE_NUMERAL_CHARS = "".join(CHINESE_NUMERAL_DIGITS) + "".join(CHINESE_NUMERAL_UNITS)
 
-QUESTION_SECTION_TITLES = {
-    "单选题",
-    "多选题",
-    "判断题",
-    "填空题",
-    "简答题",
-}
+STYLE_HEADING_RE = re.compile(rf"标题([1-9{CHINESE_NUMERAL_CHARS}]+)")
+CHINESE_ORDERED_HEADING_RE = re.compile(rf"^(?:第)?[{CHINESE_NUMERAL_CHARS}]+[、.．章节篇]")
+ARABIC_DOTTED_HEADING_RE = re.compile(r"^(\d+(?:[.．]\d+)+)")
+SHORT_TITLE_HEADING_RULES = (
+    (re.compile(r"^(?:习题|试题|答案)解析$"), 2),
+    (re.compile(r"^(?:单选|多选|判断|填空|简答)题$"), 3),
+)
 
 
 def analyze_docx(source: DocxSource) -> dict[str, Any]:
-    """@brief Analyze a DOCX file and return a document tree.
+    """@brief 分析 DOCX 文件并返回文档树。
 
-    @param source File path, bytes, or a binary file-like object.
-    @return JSON-ready dictionary containing metadata and tree data.
+    @param source 文件路径、字节数据或二进制文件对象。
+    @return 包含元数据和文档树的 JSON 可序列化字典。
     """
     docx_bytes = read_source(source)
     try:
@@ -79,7 +84,7 @@ def analyze_docx(source: DocxSource) -> dict[str, Any]:
 
 
 def _build_tree(document_root: ET.Element, style_names: dict[str, str]) -> DocumentNode:
-    """@brief Build a heading-based tree from the document body."""
+    """@brief 根据文档正文中的标题构建层级树。"""
     body = document_root.find(".//w:body", NS)
     root = DocumentNode(title="Document", level=0)
     stack = [root]
@@ -127,7 +132,7 @@ def detect_heading_level(
     style_id: str | None,
     style_name: str | None,
 ) -> int | None:
-    """@brief Detect whether a paragraph is a heading and return its level."""
+    """@brief 判断段落是否为标题，并返回标题层级。"""
     outline = paragraph.find("./w:pPr/w:outlineLvl", NS)
     outline_value = attr(outline, "val") if outline is not None else None
     if outline_value is not None and outline_value.isdigit():
@@ -140,10 +145,11 @@ def detect_heading_level(
     if match:
         return int(match.group(1))
 
-    match = re.search(r"标题([1-9一二三四五六七八九])", combined)
+    match = STYLE_HEADING_RE.search(combined)
     if match:
-        value = match.group(1)
-        return int(value) if value.isdigit() else CHINESE_LEVELS[value]
+        level = _coerce_heading_level(match.group(1))
+        if level is not None:
+            return level
 
     if normalized in {"title", "biaoti"}:
         return 1
@@ -151,24 +157,66 @@ def detect_heading_level(
 
 
 def _detect_text_heading_level(text: str) -> int | None:
-    """@brief Detect plain-text headings when DOCX styles are missing."""
+    """@brief 在缺少 DOCX 样式时根据纯文本判断标题层级。"""
     compact = re.sub(r"\s+", "", text)
     if not compact:
         return None
 
-    if re.match(r"^第[一二三四五六七八九十百]+[、.．]", compact):
+    dotted_level = _detect_dotted_number_heading_level(compact)
+    if dotted_level is not None:
+        return dotted_level
+
+    if CHINESE_ORDERED_HEADING_RE.match(compact):
         return 1
 
     normalized_title = compact.rstrip("、:：")
-    if normalized_title in PLAIN_TEXT_HEADING_LEVELS:
-        return PLAIN_TEXT_HEADING_LEVELS[normalized_title]
-    if normalized_title in QUESTION_SECTION_TITLES:
-        return 3
+    for pattern, level in SHORT_TITLE_HEADING_RULES:
+        if pattern.fullmatch(normalized_title):
+            return level
     return None
 
 
+def _coerce_heading_level(value: str) -> int | None:
+    """@brief 将数字或中文数字转换为有效标题层级。"""
+    if value.isdigit():
+        level = int(value)
+    else:
+        parsed = _parse_chinese_number(value)
+        if parsed is None:
+            return None
+        level = parsed
+    return level if 1 <= level <= 9 else None
+
+
+def _parse_chinese_number(value: str) -> int | None:
+    """@brief 解析简单中文数字。"""
+    total = 0
+    current = 0
+    for char in value:
+        if char in CHINESE_NUMERAL_DIGITS:
+            current = CHINESE_NUMERAL_DIGITS[char]
+            continue
+        unit = CHINESE_NUMERAL_UNITS.get(char)
+        if unit is None:
+            return None
+        total += (current or 1) * unit
+        current = 0
+
+    result = total + current
+    return result if result > 0 else None
+
+
+def _detect_dotted_number_heading_level(text: str) -> int | None:
+    """@brief 根据 1.1 或 1.1.1 形式判断阿拉伯数字标题层级。"""
+    match = ARABIC_DOTTED_HEADING_RE.match(text)
+    if match is None:
+        return None
+    separator_count = match.group(1).count(".") + match.group(1).count("．")
+    return min(separator_count + 1, 9)
+
+
 def _extract_table(table: ET.Element) -> dict[str, Any]:
-    """@brief Extract table text as row and cell data."""
+    """@brief 将表格文本提取为行和单元格数据。"""
     rows: list[list[str]] = []
     for row in table.findall("./w:tr", NS):
         cells: list[str] = []
@@ -180,5 +228,5 @@ def _extract_table(table: ET.Element) -> dict[str, Any]:
 
 
 def _count_nodes(node: DocumentNode) -> int:
-    """@brief Count the root and all descendants."""
+    """@brief 统计根节点及其所有子孙节点数量。"""
     return 1 + sum(_count_nodes(child) for child in node.children)

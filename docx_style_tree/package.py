@@ -1,7 +1,7 @@
-"""DOCX package input and XML helpers.
+"""DOCX 包输入与 XML 解析辅助函数。
 
 @author lliqa
-@course Wuhan University Open Source Software and Technology 2026
+@course 武汉大学开源软件与技术课程 2026
 """
 
 from __future__ import annotations
@@ -18,7 +18,7 @@ DocxSource = str | Path | bytes | BinaryIO
 
 
 def read_source(source: DocxSource) -> bytes:
-    """@brief Normalize supported input sources to bytes."""
+    """@brief 将支持的输入来源统一读取为字节数据。"""
     if isinstance(source, bytes):
         return source
     if isinstance(source, (str, Path)):
@@ -31,7 +31,7 @@ def read_source(source: DocxSource) -> bytes:
 
 
 def read_required_part(package: zipfile.ZipFile, part_name: str) -> bytes:
-    """@brief Read a required DOCX part or raise a domain error."""
+    """@brief 读取必需的 DOCX 部件，缺失时抛出领域异常。"""
     try:
         return package.read(part_name)
     except KeyError as exc:
@@ -39,7 +39,7 @@ def read_required_part(package: zipfile.ZipFile, part_name: str) -> bytes:
 
 
 def parse_xml_part(content: bytes, part_name: str) -> ET.Element:
-    """@brief Parse an OOXML part and report malformed XML as invalid DOCX."""
+    """@brief 解析 OOXML 部件，并将格式错误的 XML 报告为无效 DOCX。"""
     try:
         return ET.fromstring(content)
     except ET.ParseError as exc:
@@ -47,7 +47,7 @@ def parse_xml_part(content: bytes, part_name: str) -> ET.Element:
 
 
 def read_style_names(package: zipfile.ZipFile) -> dict[str, str]:
-    """@brief Read paragraph style id to display name mappings from styles.xml."""
+    """@brief 从 styles.xml 读取段落样式 ID 到显示名称的映射。"""
     try:
         styles_xml = package.read("word/styles.xml")
     except KeyError:

@@ -1,7 +1,7 @@
-"""Download external DOCX fixtures with checksum verification.
+"""下载外部 DOCX fixtures 并校验 SHA256。
 
 @author lliqa
-@course Wuhan University Open Source Software and Technology 2026
+@course 武汉大学开源软件与技术课程 2026
 """
 
 from __future__ import annotations
@@ -20,7 +20,7 @@ DEFAULT_DESTINATION = Path(".fixtures/docx")
 
 
 def main() -> None:
-    """@brief Parse arguments and download all manifest fixtures."""
+    """@brief 解析参数并下载 manifest 中的全部 fixtures。"""
     parser = argparse.ArgumentParser(description="Download DOCX fixtures with SHA256 checks.")
     parser.add_argument("--manifest", type=Path, default=DEFAULT_MANIFEST)
     parser.add_argument("--dest", type=Path, default=DEFAULT_DESTINATION)
@@ -48,7 +48,7 @@ def main() -> None:
 
 
 def _load_manifest(path: Path) -> dict[str, list[dict[str, Any]]]:
-    """@brief Read and minimally validate the fixture manifest."""
+    """@brief 读取 fixture manifest 并执行最小校验。"""
     data = json.loads(path.read_text(encoding="utf-8"))
     if not isinstance(data, dict) or not isinstance(data.get("fixtures"), list):
         raise SystemExit("fixture manifest must contain a fixtures list")
@@ -56,7 +56,7 @@ def _load_manifest(path: Path) -> dict[str, list[dict[str, Any]]]:
 
 
 def _download(url: str, path: Path) -> None:
-    """@brief Download one fixture through a temporary file."""
+    """@brief 通过临时文件下载单个 fixture。"""
     request = urllib.request.Request(url, headers={"User-Agent": "whuopensourcelab-fixtures"})
     with (
         urllib.request.urlopen(request, timeout=60) as response,
@@ -72,7 +72,7 @@ def _download(url: str, path: Path) -> None:
 
 
 def _sha256(path: Path) -> str:
-    """@brief Return the SHA256 digest for a file."""
+    """@brief 返回文件的 SHA256 摘要。"""
     digest = hashlib.sha256()
     with path.open("rb") as stream:
         for chunk in iter(lambda: stream.read(1024 * 1024), b""):

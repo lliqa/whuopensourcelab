@@ -9,6 +9,7 @@ from xml.etree import ElementTree as ET
 
 from docx_style_tree import analyze_docx, replace_styles
 from docx_style_tree.errors import InvalidDocxError, InvalidStyleMapError
+from docx_style_tree.extractor import detect_heading_level
 from docx_style_tree.ooxml import NS, attr, paragraph_text
 from docx_style_tree.style_replacer import load_style_map, normalize_style_map
 
@@ -58,6 +59,40 @@ class DocxProcessingTest(unittest.TestCase):
         self.assertEqual(root["children"][0]["children"][0]["children"][0]["title"], "单选题、")
         question_content = root["children"][0]["children"][0]["children"][0]["content"][0]["text"]
         self.assertEqual(question_content, "1、这是一道题，不应作为章节标题")
+
+    def test_analyze_docx_detects_numbered_plain_text_headings(self) -> None:
+        docx = _make_docx(
+            paragraphs=[
+                (None, "一、项目简介"),
+                (None, "项目正文"),
+                (None, "1.1 主要功能"),
+                (None, "功能正文"),
+                (None, "1.1.1 子功能"),
+                (None, "子功能正文"),
+                (None, "1、这是一道题，不应作为章节标题"),
+            ]
+        )
+
+        result = analyze_docx(docx)
+
+        root = result["tree"]
+        self.assertEqual(result["node_count"], 4)
+        chapter = root["children"][0]
+        section = chapter["children"][0]
+        subsection = section["children"][0]
+        self.assertEqual(chapter["title"], "一、项目简介")
+        self.assertEqual(section["title"], "1.1 主要功能")
+        self.assertEqual(subsection["title"], "1.1.1 子功能")
+        self.assertEqual(subsection["content"][1]["text"], "1、这是一道题，不应作为章节标题")
+
+    def test_detect_heading_level_parses_chinese_style_number(self) -> None:
+        paragraph = ET.fromstring(
+            '<w:p xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">'
+            "<w:r><w:t>中文样式标题</w:t></w:r>"
+            "</w:p>"
+        )
+
+        self.assertEqual(detect_heading_level(paragraph, "CustomHeading", "标题三"), 3)
 
     def test_analyze_docx_allows_missing_styles_part(self) -> None:
         docx = _make_docx(include_styles=False)
