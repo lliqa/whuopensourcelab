@@ -20,7 +20,7 @@ from docx_style_tree.ooxml import (
     NS,
     ensure_paragraph_style,
     get_paragraph_style,
-    local_name,
+    iter_body_blocks,
     normalize_style,
     paragraph_text,
     qn,
@@ -158,8 +158,9 @@ def _replace_document_styles(
 
     document_changed = False
     styles_changed = False
-    for paragraph in body:
-        if local_name(paragraph.tag) != "p" or _is_list_paragraph(paragraph):
+    for block in iter_body_blocks(body):
+        paragraph = block.element
+        if block.tag != "p" or _is_list_paragraph(paragraph):
             continue
 
         text = paragraph_text(paragraph)

@@ -16,8 +16,12 @@ class DocumentNode:
 
     title: str
     level: int
+    node_type: str = "heading"
     style_id: str | None = None
     style_name: str | None = None
+    detect_reason: str | None = None
+    block_index: int | None = None
+    container_path: tuple[str, ...] = ()
     content: list[dict[str, Any]] = field(default_factory=list)
     children: list[DocumentNode] = field(default_factory=list)
 
@@ -26,8 +30,12 @@ class DocumentNode:
         return {
             "title": self.title,
             "level": self.level,
+            "node_type": self.node_type,
             "style_id": self.style_id,
             "style_name": self.style_name,
+            "detect_reason": self.detect_reason,
+            "block_index": self.block_index,
+            "container_path": list(self.container_path),
             "content": self.content,
             "children": [child.to_dict() for child in self.children],
         }

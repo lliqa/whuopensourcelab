@@ -1,4 +1,7 @@
-.PHONY: check clean coverage docs fixtures format lint test typecheck
+.PHONY: check clean coverage docs fixtures format lint report test typecheck
+
+REPORT_DOCX ?= tests/fixtures/geodesy_navigation_remote_sensing_thesis_template.docx
+REPORT_DIR ?= outputs/extraction-report
 
 fixtures:
 	uv run python scripts/download_fixtures.py
@@ -18,6 +21,10 @@ typecheck:
 coverage:
 	uv run --extra dev coverage run -m unittest discover -s tests
 	uv run --extra dev coverage report
+	uv run --extra dev coverage html
+
+report: coverage
+	uv run python scripts/render_extraction_report.py "$(REPORT_DOCX)" -o "$(REPORT_DIR)"
 
 docs:
 	doxygen Doxyfile

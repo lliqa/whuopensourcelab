@@ -37,14 +37,49 @@ def health() -> dict[str, str]:
     return {"status": "ok"}
 
 
+@app.get("/api/v1/capabilities", tags=["v1"])
+def service_capabilities() -> dict[str, Any]:
+    """@brief 返回服务对外暴露的能力描述。"""
+    return {
+        "service": "docx-style-tree",
+        "api_version": "1.0",
+        "features": [
+            "extract_document_tree",
+            "apply_structural_styles",
+            "heading_detection_diagnostics",
+            "nested_ooxml_block_traversal",
+        ],
+        "limits": {
+            "max_upload_bytes": MAX_UPLOAD_BYTES,
+            "max_uncompressed_bytes": MAX_UNCOMPRESSED_BYTES,
+        },
+        "algorithm": {
+            "name": "ooxml_structure_tree",
+            "uses_text_matching": False,
+            "summary": "解析 document.xml 与 styles.xml，依据样式和 outlineLvl 构建类 AST 文档树。",
+        },
+    }
+
+
+@app.post("/api/v1/analyze", tags=["v1"])
+async def analyze_document_v1(file: Annotated[UploadFile, File()]) -> dict[str, Any]:
+    """@brief v1 对外 API：从上传的 DOCX 文件提取结构树。"""
+    return await _analyze_upload(file)
+
+
+@app.post("/api/v1/styles/apply", tags=["v1"])
+async def apply_styles_v1(
+    file: Annotated[UploadFile, File()],
+    style_map: Annotated[str | None, Form()] = None,
+) -> StreamingResponse:
+    """@brief v1 对外 API：按结构角色替换 DOCX 样式。"""
+    return await _replace_style_upload(file, style_map)
+
+
 @app.post("/api/tree")
 async def extract_tree(file: Annotated[UploadFile, File()]) -> dict[str, Any]:
     """@brief 从上传的 DOCX 文件中提取文档树信息。"""
-    docx_bytes = await _read_docx_upload(file)
-    try:
-        return analyze_docx(docx_bytes)
-    except InvalidDocxError as exc:
-        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return await _analyze_upload(file)
 
 
 @app.post("/api/style")
@@ -53,6 +88,23 @@ async def replace_document_style(
     style_map: Annotated[str | None, Form()] = None,
 ) -> StreamingResponse:
     """@brief 替换文档结构样式并返回更新后的 DOCX。"""
+    return await _replace_style_upload(file, style_map)
+
+
+async def _analyze_upload(file: UploadFile) -> dict[str, Any]:
+    """@brief 读取上传文件并调用文档结构提取服务。"""
+    docx_bytes = await _read_docx_upload(file)
+    try:
+        return analyze_docx(docx_bytes)
+    except InvalidDocxError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+async def _replace_style_upload(
+    file: UploadFile,
+    style_map: str | None = None,
+) -> StreamingResponse:
+    """@brief 读取上传文件并调用文档样式替换服务。"""
     docx_bytes = await _read_docx_upload(file)
     try:
         mapping = _parse_style_map(style_map)

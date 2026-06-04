@@ -21,9 +21,14 @@ class DocxProcessingTest(unittest.TestCase):
         result = analyze_docx(docx)
 
         tree = result["tree"]
+        self.assertEqual(result["api_version"], "1.0")
+        self.assertFalse(result["algorithm"]["uses_text_matching"])
+        self.assertEqual(result["metadata"]["heading_count"], 2)
         self.assertEqual(result["node_count"], 3)
         self.assertEqual(tree["children"][0]["title"], "Chapter One")
+        self.assertEqual(tree["children"][0]["detect_reason"], "style_id")
         self.assertEqual(tree["children"][0]["children"][0]["title"], "Section One")
+        self.assertEqual(tree["children"][0]["children"][0]["detect_reason"], "style_outline")
         self.assertEqual(tree["children"][0]["children"][0]["content"][0]["text"], "Body text")
 
     def test_replace_styles_updates_structural_paragraph_styles(self) -> None:
@@ -136,6 +141,7 @@ class DocxProcessingTest(unittest.TestCase):
         result = analyze_docx(docx)
 
         self.assertEqual(result["tree"]["children"][0]["level"], 3)
+        self.assertEqual(result["tree"]["children"][0]["detect_reason"], "paragraph_outline")
 
     def test_analyze_docx_detects_style_outline_level(self) -> None:
         docx = _make_docx(
@@ -179,6 +185,46 @@ class DocxProcessingTest(unittest.TestCase):
 
         rows = result["tree"]["children"][0]["content"][0]["rows"]
         self.assertEqual(rows, [["A\tB\nC"]])
+
+    def test_analyze_docx_extracts_nested_content_control_blocks(self) -> None:
+        docx = _make_docx(
+            body_xml="\n".join(
+                [
+                    _paragraph_xml("Heading1", "Chapter One"),
+                    "<w:sdt><w:sdtContent>",
+                    _paragraph_xml("Heading2", "Nested Section"),
+                    _paragraph_xml("Normal", "Nested body text"),
+                    "</w:sdtContent></w:sdt>",
+                    "<w:ins>",
+                    _paragraph_xml("Heading2", "Inserted Section"),
+                    "</w:ins>",
+                ]
+            )
+        )
+
+        result = analyze_docx(docx)
+
+        chapter = result["tree"]["children"][0]
+        self.assertEqual(
+            [child["title"] for child in chapter["children"]],
+            ["Nested Section", "Inserted Section"],
+        )
+        self.assertEqual(chapter["children"][0]["container_path"], ["sdt", "sdtContent"])
+        self.assertEqual(chapter["children"][0]["content"][0]["text"], "Nested body text")
+        self.assertEqual(chapter["children"][1]["container_path"], ["ins"])
+
+    def test_replace_styles_updates_nested_content_control_paragraphs(self) -> None:
+        docx = _make_docx(
+            body_xml=(
+                "<w:sdt><w:sdtContent>"
+                f'{_paragraph_xml("Heading2", "Nested Section")}'
+                "</w:sdtContent></w:sdt>"
+            )
+        )
+
+        output = replace_styles(docx, {"heading_2": "Custom Heading 2"})
+
+        self.assertEqual(_paragraph_style_values(output), ["CustomHeading2"])
 
     def test_replace_styles_adds_missing_target_style(self) -> None:
         docx = _make_docx()

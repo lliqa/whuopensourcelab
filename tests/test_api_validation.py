@@ -13,8 +13,11 @@ from app.main import (
     _parse_style_map,
     _read_docx_upload,
     _validate_docx_archive,
+    analyze_document_v1,
+    apply_styles_v1,
     extract_tree,
     replace_document_style,
+    service_capabilities,
 )
 from docx_style_tree.errors import InvalidStyleMapError
 
@@ -54,6 +57,15 @@ class ApiValidationTest(unittest.IsolatedAsyncioTestCase):
 
         self.assertEqual(result["node_count"], 3)
 
+    async def test_analyze_v1_endpoint_returns_api_metadata(self) -> None:
+        file = UploadFile(filename="input.docx", file=BytesIO(_make_docx()))
+
+        result = await analyze_document_v1(file)
+
+        self.assertEqual(result["api_version"], "1.0")
+        self.assertEqual(result["algorithm"]["name"], "ooxml_structure_tree")
+        self.assertIn("metadata", result)
+
     async def test_replace_style_endpoint_returns_docx_response(self) -> None:
         file = UploadFile(filename="input.docx", file=BytesIO(_make_docx()))
 
@@ -64,6 +76,20 @@ class ApiValidationTest(unittest.IsolatedAsyncioTestCase):
             "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
         )
         self.assertIn("input_styled.docx", response.headers["content-disposition"])
+
+    async def test_apply_styles_v1_endpoint_returns_docx_response(self) -> None:
+        file = UploadFile(filename="input.docx", file=BytesIO(_make_docx()))
+
+        response = await apply_styles_v1(file)
+
+        self.assertEqual(response.status_code, 200)
+
+    def test_service_capabilities_exposes_public_contract(self) -> None:
+        result = service_capabilities()
+
+        self.assertEqual(result["api_version"], "1.0")
+        self.assertFalse(result["algorithm"]["uses_text_matching"])
+        self.assertIn("nested_ooxml_block_traversal", result["features"])
 
     async def test_replace_style_endpoint_rejects_invalid_json(self) -> None:
         file = UploadFile(filename="input.docx", file=BytesIO(_make_docx()))

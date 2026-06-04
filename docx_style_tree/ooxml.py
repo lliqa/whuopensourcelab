@@ -7,6 +7,8 @@
 from __future__ import annotations
 
 import re
+from collections.abc import Iterator
+from dataclasses import dataclass
 from xml.etree import ElementTree as ET
 
 W_NS = "http://schemas.openxmlformats.org/wordprocessingml/2006/main"
@@ -15,6 +17,28 @@ NS = {"w": W_NS, "r": R_NS}
 
 ET.register_namespace("w", W_NS)
 ET.register_namespace("r", R_NS)
+
+BODY_BLOCK_TAGS = {"p", "tbl"}
+TRANSPARENT_BLOCK_CONTAINERS = {
+    "body",
+    "customXml",
+    "ins",
+    "moveFrom",
+    "moveTo",
+    "sdt",
+    "sdtContent",
+    "smartTag",
+}
+
+
+@dataclass(frozen=True)
+class BodyBlock:
+    """@brief 文档正文中按顺序遍历得到的块级元素。"""
+
+    element: ET.Element
+    tag: str
+    index: int
+    container_path: tuple[str, ...]
 
 
 def qn(name: str) -> str:
@@ -57,6 +81,54 @@ def get_paragraph_style(paragraph: ET.Element) -> str | None:
     """@brief 返回段落样式 ID。"""
     style = paragraph.find("./w:pPr/w:pStyle", NS)
     return attr(style, "val") if style is not None else None
+
+
+def iter_body_blocks(body: ET.Element) -> Iterator[BodyBlock]:
+    """@brief 按正文顺序遍历段落、表格和透明容器中的块级元素。
+
+    DOCX 中的段落和表格不一定都是 `w:body` 的直接子元素，真实模板中常见
+    `w:sdt` 内容控件、`w:ins` 插入修订、`w:customXml` 等透明容器。本函数
+    将这些容器展开，向调用者提供稳定的块级遍历结果。
+    """
+    for index, (element, tag, path) in enumerate(_iter_block_elements(body, ())):
+        yield BodyBlock(element=element, tag=tag, index=index, container_path=path)
+
+
+def _iter_block_elements(
+    parent: ET.Element,
+    container_path: tuple[str, ...],
+) -> Iterator[tuple[ET.Element, str, tuple[str, ...]]]:
+    """@brief 递归展开 OOXML 透明块级容器。"""
+    for child in parent:
+        tag = local_name(child.tag)
+        if tag in BODY_BLOCK_TAGS:
+            yield child, tag, container_path
+        elif tag in TRANSPARENT_BLOCK_CONTAINERS:
+            if tag == "sdt" and contains_toc_field(child):
+                continue
+            yield from _iter_block_elements(child, container_path + (tag,))
+
+
+def contains_toc_field(element: ET.Element) -> bool:
+    """@brief 判断元素内部是否包含目录域。"""
+    for descendant in element.iter():
+        tag = local_name(descendant.tag)
+        if tag == "fldSimple":
+            instruction = attr(descendant, "instr")
+        elif tag == "instrText":
+            instruction = descendant.text
+        else:
+            instruction = None
+
+        if instruction and _is_toc_instruction(instruction):
+            return True
+    return False
+
+
+def _is_toc_instruction(instruction: str) -> bool:
+    """@brief 判断域指令是否为 TOC 目录。"""
+    normalized = instruction.strip().upper()
+    return normalized == "TOC" or normalized.startswith("TOC ")
 
 
 def ensure_paragraph_style(paragraph: ET.Element) -> ET.Element:
