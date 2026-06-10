@@ -24,6 +24,16 @@
 - 支持复杂 DOCX fixture、真实论文模板和自动化测试。
 - 生成可截图用于演示的结构树 HTML/SVG 报告。
 
+## 文档地图
+
+| 文档 | 作用 |
+|---|---|
+| [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | C4 架构图、架构风格、敏感点和 ATAM 分析。 |
+| [docs/CODE_GUIDE.md](docs/CODE_GUIDE.md) | 代码阅读顺序、模块职责、核心流程和测试策略。 |
+| [docs/DOCUMENTATION.md](docs/DOCUMENTATION.md) | README、架构文档、Doxygen 和报告页面的分工。 |
+| [docs/DESIGN_RATIONALE.md](docs/DESIGN_RATIONALE.md) | 设计思路、关键取舍和开源软件方法体现。 |
+| [docs/ROADMAP.md](docs/ROADMAP.md) | 后续升级路线，重点是模板与实际论文的格式一致性比较。 |
+
 ## 快速开始
 
 建议使用 Python 3.11 和 `uv`。
@@ -247,7 +257,7 @@ make docs
 .
 ├── app/                         # FastAPI 服务入口与上传校验
 ├── config/                      # 预定义样式映射
-├── docs/                        # 课程文档、README 图片与生成的 API 文档
+├── docs/                        # 架构、代码、设计、路线图和 README 图片
 ├── docx_style_tree/             # 核心 DOCX 解析与样式替换模块
 │   ├── extractor.py             # 文档树提取
 │   ├── ooxml.py                 # OOXML 通用工具与块遍历
