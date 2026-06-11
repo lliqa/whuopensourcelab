@@ -61,8 +61,8 @@ README 不应该承载所有解释，否则会变得冗长。因此架构分析�
 `docs/DESIGN_RATIONALE.md` 面向课程报告。它重点解释：
 
 - 为什么选择 OOXML 而不是 Word 自动化。
-- 为什么禁止正文关键词匹配。
-- 为什么保留 API、CLI、报告脚本三类入口。
+- 标题识别依据来自哪些 OOXML 结构和样式元数据。
+- 为什么保留 API、React Demo、MCP、CLI、报告脚本多类入口。
 - 如何体现开源软件课程的方法。
 - 哪些事情明确不做。
 
@@ -118,7 +118,7 @@ outputs/extraction-report/
 README 中使用的示例图保存在：
 
 ```text
-docs/assets/extraction-tree.svg
+docs/assets/frontend-demo-docxstruct.png
 ```
 
 ## 文档维护原则

@@ -4,7 +4,7 @@
 
 ## 产品方向
 
-当前项目已经具备 DOCX 结构提取、样式替换、FastAPI 接口和可视化报告。下一步最有吸引力的方向是：
+当前项目已经具备 DOCX 结构提取、样式替换、FastAPI 接口、React 演示前端、MCP 工具入口和可视化报告。下一步最有吸引力的方向是：
 
 > 比较模板 DOCX 与实际论文 DOCX，判断论文格式是否与模板一致。
 
@@ -158,7 +158,17 @@ outputs/extraction-report/
 
 目标：让别人打开仓库后能快速理解项目价值。
 
-建议新增：
+当前已经具备：
+
+```text
+frontend/                  # React 单页演示
+GET /api/v1/demo/sample    # 内置论文模板样例
+make demo-api              # 后端演示入口
+make demo-ui               # 前端演示入口
+make demo-case             # 命令行样例输出
+```
+
+后续可以继续补充：
 
 ```text
 examples/

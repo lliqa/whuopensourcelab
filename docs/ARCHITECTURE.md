@@ -10,8 +10,8 @@
 
 - 运行环境以 Linux + Python + FastAPI 为主。
 - 不依赖 Microsoft Word 或 LibreOffice。
-- 解析过程应基于 Office Open XML，而不是正文关键词匹配。
-- 对外能力需要能通过 HTTP API、CLI 和演示报告复用。
+- 解析过程应基于 Office Open XML 的结构和样式元数据。
+- 对外能力需要能通过 HTTP API、React 演示、CLI、MCP 工具和演示报告复用。
 - 复杂 DOCX 包中的非目标部件应尽量原样保留。
 
 ## 架构风格
@@ -19,7 +19,7 @@
 当前系统采用 **轻量分层架构 + Ports and Adapters 思路**。
 
 ```text
-接口层        FastAPI / CLI / 报告脚本
+接口层        React Demo / FastAPI / MCP / CLI / 报告脚本
 应用层        上传校验、参数解析、输出格式组织
 核心层        DOCX 解析、结构树构建、样式替换
 基础设施层    ZIP 包读取、XML 解析、测试 fixtures、生成报告
@@ -27,7 +27,7 @@
 
 这种架构的好处：
 
-- FastAPI、CLI、报告脚本只是入口，核心能力集中在 `docx_style_tree` 包中。
+- React、FastAPI、MCP、CLI、报告脚本只是入口，核心能力集中在 `docx_style_tree` 包中。
 - 核心逻辑基本无状态，不依赖数据库，容易测试和复用。
 - 后续增加 `/api/v1/compare` 时，可以复用现有解析器和样式元数据读取能力。
 - 解析输出与展示报告分离，避免把演示话术混入真实 API 输出。
@@ -40,12 +40,14 @@ title DOCX Style Tree - System Context
 
 Person(student, "学生 / 作者", "上传论文或课程报告，检查结构和样式。")
 Person(teacher, "教师 / 评审者", "查看结构树、格式问题和测试结果。")
+Person_Ext(agent, "MCP 客户端", "通过工具调用分析本地 DOCX。")
 System(system, "DOCX Style Tree", "DOCX 结构提取、样式替换和可视化报告服务。")
 System_Ext(word, "DOCX 文件", "模板、论文、课程报告。")
 System_Ext(ci, "GitHub Actions", "运行 lint、typecheck、tests 和 coverage。")
 
 Rel(student, system, "上传 DOCX / 调用 API / 使用 CLI")
 Rel(teacher, system, "查看 README、报告和 API 文档")
+Rel(agent, system, "调用 MCP 工具")
 Rel(system, word, "读取 document.xml、styles.xml 和包部件")
 Rel(ci, system, "验证代码质量和测试覆盖率")
 ```
@@ -59,7 +61,9 @@ title DOCX Style Tree - Containers
 Person(user, "用户", "学生、教师或其他系统。")
 
 System_Boundary(dst, "DOCX Style Tree") {
+  Container(react, "React Demo", "Vite + React", "提供上传、内置样例、指标、结构树和解析流程展示。")
   Container(api, "FastAPI 服务", "FastAPI", "提供 /api/v1/analyze、/api/v1/styles/apply 等接口。")
+  Container(mcp, "MCP Server", "Python MCP", "提供 describe_docx_parser、analyze_docx_path 等工具。")
   Container(cli, "CLI", "argparse", "提供 analyze 和 style 命令。")
   Container(core, "核心解析包", "Python package", "实现 DOCX 读取、结构树构建和样式替换。")
   Container(report, "报告生成脚本", "Python script", "生成 HTML、SVG 和 JSON 可视化结果。")
@@ -69,8 +73,11 @@ System_Boundary(dst, "DOCX Style Tree") {
 ContainerDb(fixtures, "DOCX Fixtures", "DOCX", "真实论文模板和外部复杂样例。")
 
 Rel(user, api, "HTTP 上传 DOCX")
+Rel(user, react, "浏览器演示")
 Rel(user, cli, "命令行处理 DOCX")
+Rel(react, api, "HTTP / JSON")
 Rel(api, core, "调用 analyze_docx / replace_styles")
+Rel(mcp, core, "调用核心包")
 Rel(cli, core, "调用核心包")
 Rel(report, core, "调用 analyze_docx")
 Rel(testing, core, "验证解析和样式替换")
@@ -87,6 +94,7 @@ Container_Boundary(core, "docx_style_tree") {
   Component(extractor, "extractor.py", "结构提取器", "读取正文块，识别标题，构建文档树。")
   Component(ooxml, "ooxml.py", "OOXML 工具", "命名空间、段落文本、样式读取、块级遍历。")
   Component(package, "package.py", "DOCX 包辅助", "读取输入、解析 XML、读取 styles.xml。")
+  Component(pipeline, "pipeline.py", "解析流程说明", "为 API、React、MCP 和文档提供统一流程描述。")
   Component(models, "models.py", "数据模型", "定义 DocumentNode。")
   Component(replacer, "style_replacer.py", "样式替换器", "按结构角色替换段落样式并保留包部件。")
   Component(errors, "errors.py", "领域异常", "统一报告无效 DOCX 和样式映射错误。")
@@ -95,6 +103,7 @@ Container_Boundary(core, "docx_style_tree") {
 Rel(extractor, ooxml, "提取段落、样式、正文块")
 Rel(extractor, package, "读取 document.xml / styles.xml")
 Rel(extractor, models, "构建 DocumentNode")
+Rel(extractor, pipeline, "附加解析流程元数据")
 Rel(replacer, ooxml, "定位段落并写入目标样式")
 Rel(replacer, package, "读取和重写 DOCX 包")
 Rel(extractor, errors, "报告无效 DOCX")
@@ -140,7 +149,7 @@ flowchart TD
 | 决策 | 原因 | 代价 |
 |---|---|---|
 | 直接解析 OOXML，而不是依赖 Word。 | Linux 服务端可运行，部署简单，适合课程要求。 | 无法获得 Word 渲染后的精确版面。 |
-| 禁止正文关键词匹配标题。 | 避免“第一章”“1.1”等普通正文被误判。 | 需要依赖文档内部样式质量。 |
+| 使用结构和样式元数据识别标题。 | 识别依据清晰，可通过 `detect_reason` 解释。 | 需要依赖文档内部样式质量。 |
 | 使用 `detect_reason` 暴露识别依据。 | 结果可解释，适合演示和调试。 | 输出结构略复杂。 |
 | API、CLI、报告脚本共用核心包。 | 降低重复逻辑，方便测试。 | 核心包需要保持接口稳定。 |
 | 保留旧 `/api/tree` 和 `/api/style`。 | 向后兼容。 | API 文档中需要解释推荐使用 `/api/v1`。 |
@@ -223,7 +232,7 @@ ATAM 关注“架构决策如何影响质量属性”。本项目的简化 ATAM 
 
 | 权衡 | 选择 |
 |---|---|
-| 猜测更多标题 vs 降低误判 | 选择降低误判，不使用正文文本规则。 |
+| 猜测更多标题 vs 降低误判 | 选择结构化依据优先，减少误判。 |
 | 引入大型 DOCX 库 vs 保持可控依赖 | 选择标准库 ZIP/XML，便于解释和部署。 |
 | 输出简单 JSON vs 输出可解释诊断 | 选择带诊断信息的 JSON，便于演示和调试。 |
 | 单一入口 vs 多入口 | 保留 API、CLI、报告脚本，但共用核心包。 |

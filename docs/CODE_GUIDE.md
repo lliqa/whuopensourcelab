@@ -8,11 +8,13 @@
 
 1. `README.md`：了解项目做什么。
 2. `app/main.py`：了解对外 API 如何封装。
-3. `docx_style_tree/extractor.py`：理解文档树如何生成。
-4. `docx_style_tree/ooxml.py`：理解 OOXML 辅助函数和块遍历。
-5. `docx_style_tree/style_replacer.py`：理解样式替换如何保持 DOCX 包完整。
-6. `tests/`：查看复杂 DOCX、真实论文模板和 API 校验用例。
-7. `scripts/render_extraction_report.py`：查看可视化报告如何生成。
+3. `frontend/src/App.jsx`：了解现场演示页面如何调用 API。
+4. `mcp_server.py`：了解解析能力如何包装成 MCP 工具。
+5. `docx_style_tree/extractor.py`：理解文档树如何生成。
+6. `docx_style_tree/ooxml.py`：理解 OOXML 辅助函数和块遍历。
+7. `docx_style_tree/style_replacer.py`：理解样式替换如何保持 DOCX 包完整。
+8. `tests/`：查看复杂 DOCX、真实论文模板和 API 校验用例。
+9. `scripts/render_extraction_report.py`：查看可视化报告如何生成。
 
 ## 代码结构
 
@@ -20,13 +22,17 @@
 app/
 └── main.py                       # FastAPI 服务入口
 
+frontend/
+└── src/App.jsx                   # React 单页演示
+
 docx_style_tree/
-├── __init__.py                   # 对外导出 analyze_docx / replace_styles
+├── __init__.py                   # 对外导出核心函数
 ├── errors.py                     # 领域异常
 ├── extractor.py                  # 文档结构提取
 ├── models.py                     # 文档树节点模型
 ├── ooxml.py                      # OOXML 命名空间、段落文本、块遍历
 ├── package.py                    # DOCX 包读取与 XML 解析
+├── pipeline.py                   # 解析流程说明
 └── style_replacer.py             # 结构样式替换
 
 scripts/
@@ -40,6 +46,8 @@ tests/
 ├── test_external_fixtures.py     # 外部复杂 DOCX
 ├── test_local_thesis_template.py # 真实论文模板
 └── test_thesis_docx_processing.py# 合成论文模板
+
+mcp_server.py                     # MCP 工具入口
 ```
 
 ## 核心公共 API
@@ -47,7 +55,7 @@ tests/
 包入口位于 `docx_style_tree/__init__.py`。
 
 ```python
-from docx_style_tree import analyze_docx, replace_styles
+from docx_style_tree import analyze_docx, describe_processing_pipeline, replace_styles
 ```
 
 `analyze_docx(source)`：
@@ -61,6 +69,11 @@ from docx_style_tree import analyze_docx, replace_styles
 - 输入：DOCX 和结构角色到目标样式的映射。
 - 输出：新的 DOCX bytes。
 - 只修改必要 XML 部件，其他包部件尽量原样保留。
+
+`describe_processing_pipeline()`：
+
+- 输出：解析器名称、摘要和流程步骤。
+- 主要用于 capabilities、React Demo、MCP 工具和 README 说明。
 
 ## 文档结构提取
 
@@ -167,6 +180,7 @@ config/predefined_styles.json
 ```text
 GET  /health
 GET  /api/v1/capabilities
+GET  /api/v1/demo/sample
 POST /api/v1/analyze
 POST /api/v1/styles/apply
 POST /api/tree              # 兼容旧接口
@@ -180,6 +194,52 @@ POST /api/style             # 兼容旧接口
 - 解压后总体积限制。
 - ZIP 成员路径不能是绝对路径或包含 `..`。
 - 必须包含 `word/document.xml`。
+
+## React 演示前端
+
+主要文件：`frontend/src/App.jsx`
+
+页面职责：
+
+- 加载 `/api/v1/demo/sample`，展示仓库内置论文模板解析结果。
+- 上传 `.docx` 文件到 `/api/v1/analyze`。
+- 展示节点数、标题数、最大层级、段落和表格统计。
+- 展示结构树和解析流程。
+
+运行：
+
+```bash
+make demo-api
+make frontend-install
+make demo-ui
+```
+
+构建静态页面：
+
+```bash
+make frontend-build
+```
+
+构建后 FastAPI 会自动把 `frontend/dist` 挂载到 `/demo`。
+
+## MCP 工具入口
+
+主要文件：`mcp_server.py`
+
+工具列表：
+
+```text
+describe_docx_parser
+analyze_docx_path
+apply_docx_styles_path
+```
+
+运行：
+
+```bash
+uv sync --extra mcp
+uv run --extra mcp docx-style-tree-mcp
+```
 
 ## 报告生成
 
@@ -208,7 +268,7 @@ outputs/extraction-report/
 
 - 基础 DOCX 解析。
 - 标题样式和 `outlineLvl` 识别。
-- 禁止正文文本误判标题。
+- 正文中类似标题的内容不会被误判为结构标题。
 - 表格文本提取。
 - 内容控件、TOC、修订和复杂包部件。
 - 样式替换和样式创建。
@@ -226,8 +286,7 @@ make check
 当前本地结果：
 
 ```text
-47 tests passed
-coverage: 92%
+以 `make check` 输出为准。
 ```
 
 ## 后续代码扩展点

@@ -16,3 +16,5 @@ tree.json
 styled.docx
 outputs/
 docs/api/
+frontend/node_modules/
+frontend/dist/

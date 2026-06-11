@@ -13,6 +13,7 @@ from app.main import (
     _parse_style_map,
     _read_docx_upload,
     _validate_docx_archive,
+    analyze_demo_sample,
     analyze_document_v1,
     apply_styles_v1,
     extract_tree,
@@ -64,6 +65,7 @@ class ApiValidationTest(unittest.IsolatedAsyncioTestCase):
 
         self.assertEqual(result["api_version"], "1.0")
         self.assertEqual(result["algorithm"]["name"], "ooxml_structure_tree")
+        self.assertGreaterEqual(len(result["algorithm"]["pipeline"]), 5)
         self.assertIn("metadata", result)
 
     async def test_replace_style_endpoint_returns_docx_response(self) -> None:
@@ -90,6 +92,13 @@ class ApiValidationTest(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(result["api_version"], "1.0")
         self.assertFalse(result["algorithm"]["uses_text_matching"])
         self.assertIn("nested_ooxml_block_traversal", result["features"])
+        self.assertIn("pipeline", result["algorithm"])
+
+    def test_demo_sample_endpoint_returns_bundled_fixture_result(self) -> None:
+        result = analyze_demo_sample()
+
+        self.assertEqual(result["demo"]["name"], "真实论文模板")
+        self.assertGreater(result["node_count"], 1)
 
     async def test_replace_style_endpoint_rejects_invalid_json(self) -> None:
         file = UploadFile(filename="input.docx", file=BytesIO(_make_docx()))

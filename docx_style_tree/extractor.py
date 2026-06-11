@@ -31,6 +31,7 @@ from docx_style_tree.package import (
     read_style_names,
     read_style_outline_levels,
 )
+from docx_style_tree.pipeline import PARSER_NAME, describe_processing_pipeline
 
 CHINESE_NUMERAL_DIGITS = {
     "零": 0,
@@ -98,9 +99,10 @@ def analyze_docx(source: DocxSource) -> dict[str, Any]:
         "api_version": API_VERSION,
         "format": "docx",
         "algorithm": {
-            "name": "ooxml_structure_tree",
+            "name": PARSER_NAME,
             "description": "基于 OOXML 段落、表格、样式和 outlineLvl 构建类 AST 文档结构树。",
             "uses_text_matching": False,
+            "pipeline": describe_processing_pipeline()["pipeline"],
         },
         "node_count": _count_nodes(tree),
         "metadata": {

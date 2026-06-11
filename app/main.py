@@ -10,19 +10,26 @@ import json
 import zipfile
 from collections.abc import Mapping
 from io import BytesIO
-from pathlib import PurePosixPath
+from pathlib import Path, PurePosixPath
 from typing import Annotated, Any, cast
 
 from fastapi import FastAPI, File, Form, HTTPException, UploadFile
 from fastapi.responses import StreamingResponse
+from fastapi.staticfiles import StaticFiles
 
-from docx_style_tree import analyze_docx, replace_styles
+from docx_style_tree import analyze_docx, describe_processing_pipeline, replace_styles
 from docx_style_tree.errors import InvalidDocxError, InvalidStyleMapError
+from docx_style_tree.pipeline import PARSER_NAME
 from docx_style_tree.style_replacer import load_style_map
 
 MAX_UPLOAD_BYTES = 10 * 1024 * 1024
 MAX_UNCOMPRESSED_BYTES = 50 * 1024 * 1024
 READ_CHUNK_BYTES = 1024 * 1024
+PROJECT_ROOT = Path(__file__).resolve().parents[1]
+DEMO_DOCX_PATH = (
+    PROJECT_ROOT / "tests/fixtures/geodesy_navigation_remote_sensing_thesis_template.docx"
+)
+FRONTEND_DIST = PROJECT_ROOT / "frontend/dist"
 
 app = FastAPI(
     title="DOCX 文档结构提取与样式替换实验",
@@ -54,9 +61,10 @@ def service_capabilities() -> dict[str, Any]:
             "max_uncompressed_bytes": MAX_UNCOMPRESSED_BYTES,
         },
         "algorithm": {
-            "name": "ooxml_structure_tree",
+            "name": PARSER_NAME,
             "uses_text_matching": False,
-            "summary": "解析 document.xml 与 styles.xml，依据样式和 outlineLvl 构建类 AST 文档树。",
+            "summary": describe_processing_pipeline()["summary"],
+            "pipeline": describe_processing_pipeline()["pipeline"],
         },
     }
 
@@ -74,6 +82,23 @@ async def apply_styles_v1(
 ) -> StreamingResponse:
     """@brief v1 对外 API：按结构角色替换 DOCX 样式。"""
     return await _replace_style_upload(file, style_map)
+
+
+@app.get("/api/v1/demo/sample", tags=["v1", "demo"])
+def analyze_demo_sample() -> dict[str, Any]:
+    """@brief 解析仓库内置论文模板样例，供现场演示使用。"""
+    if not DEMO_DOCX_PATH.exists():
+        raise HTTPException(status_code=404, detail="Demo DOCX fixture is not available.")
+    try:
+        result = analyze_docx(DEMO_DOCX_PATH)
+    except InvalidDocxError as exc:
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
+    result["demo"] = {
+        "name": "真实论文模板",
+        "filename": DEMO_DOCX_PATH.name,
+        "purpose": "用于现场展示结构树、标题层级、段落和表格统计。",
+    }
+    return result
 
 
 @app.post("/api/tree")
@@ -192,3 +217,12 @@ def _styled_filename(filename: str | None) -> str:
     if filename.lower().endswith(".docx"):
         return f"{filename[:-5]}_styled.docx"
     return f"{filename}_styled.docx"
+
+
+def _mount_frontend() -> None:
+    """@brief 如果 React 前端已构建，则挂载为 /demo 静态页面。"""
+    if FRONTEND_DIST.exists():
+        app.mount("/demo", StaticFiles(directory=FRONTEND_DIST, html=True), name="demo")
+
+
+_mount_frontend()

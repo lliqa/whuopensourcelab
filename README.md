@@ -3,6 +3,7 @@
 [![CI](https://github.com/lliqa/whuopensourcelab/actions/workflows/ci.yml/badge.svg)](https://github.com/lliqa/whuopensourcelab/actions/workflows/ci.yml)
 ![Python](https://img.shields.io/badge/Python-3.11-blue)
 ![FastAPI](https://img.shields.io/badge/API-FastAPI-009688)
+![React](https://img.shields.io/badge/Demo-React-61dafb)
 ![License](https://img.shields.io/badge/License-MIT-green)
 
 武汉大学“开源软件与技术”课程项目。项目面向 `.docx` 文件，提供文档结构提取、结构样式替换和可视化演示报告能力。
@@ -18,11 +19,54 @@
 核心能力：
 
 - 提取 DOCX 中的标题层级、段落和表格，生成结构化 JSON。
-- 根据样式、`outlineLvl` 和样式继承关系识别标题，而不是依赖正文关键词匹配。
+- 根据样式、`outlineLvl` 和样式继承关系识别标题层级。
 - 提供 FastAPI v1 对外接口，适合作为独立文档处理服务集成。
+- 提供 React 单页演示前端，支持内置论文模板样例和用户上传 DOCX。
+- 提供 MCP server，将 DOCX 解析能力包装成工具调用。
 - 支持按结构角色批量替换 Word 样式。
 - 支持复杂 DOCX fixture、真实论文模板和自动化测试。
 - 生成可截图用于演示的结构树 HTML/SVG 报告。
+
+## 系统封装方式
+
+同一套核心解析包 `docx_style_tree` 被包装成四类入口：
+
+| 入口 | 面向场景 | 说明 |
+|---|---|---|
+| FastAPI | 外部系统集成 | `/api/v1/analyze`、`/api/v1/styles/apply`、`/api/v1/demo/sample`。 |
+| React Demo | 现场演示 | 左侧上传或加载样例，右侧展示指标、结构树和解析流程。 |
+| CLI | 本地批处理 | `docx-style-tree analyze` 与 `docx-style-tree style`。 |
+| MCP Server | 工具化调用 | `describe_docx_parser`、`analyze_docx_path`、`apply_docx_styles_path`。 |
+
+## 架构图
+
+```mermaid
+C4Container
+title DOCX Style Tree - Containers
+
+Person(user, "用户 / 演示者", "上传 DOCX、查看结构树、调用工具。")
+System_Ext(docx, "DOCX 文件", "课程报告、论文模板、普通 Word 文档。")
+System_Ext(agent, "MCP Client", "支持 MCP 的外部工具或智能体。")
+
+System_Boundary(system, "DOCX Style Tree") {
+  Container(react, "React Demo", "Vite + React", "现场上传 DOCX，展示结构树、指标和解析流程。")
+  Container(api, "FastAPI 服务", "Python / FastAPI", "提供上传校验、结构提取、样式替换和内置样例接口。")
+  Container(mcp, "MCP Server", "Python / MCP", "把解析能力暴露为工具调用。")
+  Container(cli, "CLI", "argparse", "本地批处理 DOCX。")
+  Container(core, "docx_style_tree", "Python package", "解析 OOXML、构建文档树、替换结构样式。")
+  Container(report, "Report Renderer", "Python script", "生成 HTML、SVG、JSON 可视化报告。")
+}
+
+Rel(user, react, "浏览器演示")
+Rel(user, cli, "命令行处理")
+Rel(agent, mcp, "工具调用")
+Rel(react, api, "HTTP / JSON")
+Rel(api, core, "调用 analyze_docx / replace_styles")
+Rel(mcp, core, "调用核心解析函数")
+Rel(cli, core, "调用核心解析函数")
+Rel(report, core, "生成可视化报告")
+Rel(core, docx, "读取 ZIP 与 OOXML 部件")
+```
 
 ## 文档地图
 
@@ -54,6 +98,42 @@ uv run uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
 - API 文档：http://127.0.0.1:8000/docs
 - 健康检查：http://127.0.0.1:8000/health
 - 服务能力：http://127.0.0.1:8000/api/v1/capabilities
+- React Demo：http://127.0.0.1:8000/demo （需要先执行 `make frontend-build`）
+
+## 现场演示
+
+推荐课堂演示使用两端启动方式，便于热更新和投屏：
+
+```bash
+make demo-api
+```
+
+另开一个终端：
+
+```bash
+make frontend-install
+make demo-ui
+```
+
+浏览器打开：
+
+```text
+http://127.0.0.1:5173
+```
+
+演示顺序：
+
+1. 点击“加载论文模板样例”，展示仓库内置真实论文模板的结构树。
+2. 说明右侧指标：文档树节点、标题数量、最大层级、段落和表格扫描数量。
+3. 展示“解析流程”：解包 DOCX、解析 OOXML、建立样式索引、识别结构角色、栈式建树、输出 JSON。
+4. 拖拽自己的 `.docx` 文件到左侧上传区，现场调用 `/api/v1/analyze`。
+
+也可以生成前端静态构建，由 FastAPI 直接挂载：
+
+```bash
+make frontend-build
+make demo-api
+```
 
 ## API 设计
 
@@ -64,6 +144,14 @@ curl "http://127.0.0.1:8000/api/v1/capabilities"
 ```
 
 该接口返回服务版本、能力列表、上传限制和算法说明，方便前端或其他系统做能力探测。
+
+### 加载内置演示样例
+
+```bash
+curl "http://127.0.0.1:8000/api/v1/demo/sample"
+```
+
+该接口解析仓库内置的真实论文模板 fixture，适合现场演示时快速得到稳定结果。
 
 ### 提取文档结构
 
@@ -80,7 +168,14 @@ curl -X POST "http://127.0.0.1:8000/api/v1/analyze" \
   "format": "docx",
   "algorithm": {
     "name": "ooxml_structure_tree",
-    "uses_text_matching": false
+    "pipeline": [
+      {"name": "解包 DOCX"},
+      {"name": "解析 OOXML"},
+      {"name": "建立样式索引"},
+      {"name": "识别结构角色"},
+      {"name": "栈式构建树"},
+      {"name": "输出结果"}
+    ]
   },
   "metadata": {
     "paragraph_count": 157,
@@ -146,9 +241,31 @@ uv run python cli.py style example.docx \
   --styles config/predefined_styles.json
 ```
 
+## MCP 工具调用
+
+安装 MCP 可选依赖：
+
+```bash
+uv sync --extra mcp
+```
+
+启动 MCP server：
+
+```bash
+uv run --extra mcp docx-style-tree-mcp
+```
+
+暴露的工具：
+
+| 工具 | 作用 |
+|---|---|
+| `describe_docx_parser` | 返回解析方式、流程和步骤说明。 |
+| `analyze_docx_path` | 输入本地 DOCX 路径，返回结构树 JSON。 |
+| `apply_docx_styles_path` | 输入 DOCX 路径和输出路径，生成样式替换后的 DOCX。 |
+
 ## 解析思路
 
-DOCX 文件本质上是一个 ZIP 包，正文和样式分别存储在 XML 部件中。本项目的核心不是 KMP 字符串匹配，而是基于 OOXML 的结构化解析。
+DOCX 文件本质上是一个 ZIP 包，正文和样式分别存储在 XML 部件中。本项目采用 OOXML 结构化解析：读取正文 XML、样式 XML 和样式继承关系，把 Word 文档转换为一棵可编程的文档结构树。
 
 处理流程：
 
@@ -180,9 +297,9 @@ for block in document_body:
 
 ## 可视化报告
 
-示例可视化结果如下，来源于仓库内的真实论文模板 fixture：
+示例可视化结果如下，来源于网页演示端对真实论文模板 fixture 的解析截图：
 
-![DOCX 文档树结构图](docs/assets/extraction-tree.svg)
+![DocxStruct 网页演示截图](docs/assets/frontend-demo-docxstruct.png)
 
 生成结构提取结果的 HTML/SVG 报告：
 
@@ -230,8 +347,7 @@ make check
 当前本地结果：
 
 ```text
-47 tests passed
-coverage: 92%
+当前测试会随功能增加而变化，请以 `make check` 输出为准。
 ```
 
 运行外部复杂 DOCX fixture 测试：
@@ -262,11 +378,14 @@ make docs
 │   ├── extractor.py             # 文档树提取
 │   ├── ooxml.py                 # OOXML 通用工具与块遍历
 │   ├── package.py               # DOCX 包读取与 XML 解析
+│   ├── pipeline.py              # 解析流程说明
 │   ├── style_replacer.py        # 结构样式替换
 │   └── models.py                # 文档树数据模型
+├── frontend/                    # React 单页演示前端
 ├── scripts/                     # fixture 下载与报告生成脚本
 ├── tests/                       # 单元测试和复杂 DOCX fixture 测试
 ├── cli.py                       # 命令行入口
+├── mcp_server.py                # MCP 工具化调用入口
 ├── Makefile                     # 常用开发命令
 └── pyproject.toml               # 项目元数据与工具配置
 ```

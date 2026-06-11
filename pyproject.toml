@@ -16,13 +16,14 @@ dependencies = [
 
 [project.scripts]
 docx-style-tree = "cli:main"
+docx-style-tree-mcp = "mcp_server:main"
 
 [build-system]
 requires = ["setuptools>=68"]
 build-backend = "setuptools.build_meta"
 
 [tool.setuptools]
-py-modules = ["cli"]
+py-modules = ["cli", "mcp_server"]
 
 [tool.setuptools.packages.find]
 include = ["app*", "docx_style_tree*"]
@@ -32,6 +33,9 @@ dev = [
   "coverage[toml]>=7.6.0",
   "mypy>=1.10.0",
   "ruff>=0.6.0"
+]
+mcp = [
+  "mcp>=1.9.0"
 ]
 
 [tool.ruff]
